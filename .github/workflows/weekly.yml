@@ -28,8 +28,9 @@ jobs:
         run: pytest
       - name: Generate and email digest
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_MODEL: gpt-6.2-astra
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: gemini-4-carbon
+          GEMINI_FALLBACK_MODELS: gemini-3.8-flash,gemini-3.1-flash-lite
           OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
