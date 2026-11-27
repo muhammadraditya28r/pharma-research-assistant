@@ -9,12 +9,12 @@ load_dotenv()
 
 @dataclass(frozen=True)
 class Settings:
-    gemini_api_key: str
-    gemini_model: str
+    openai_api_key: str
+    openai_model: str
+    openalex_api_key: str
     smtp_user: str
     smtp_app_password: str
     recipient_email: str
-    openalex_mailto: str
     lookback_days: int
     max_results_per_query: int
     max_total_candidates: int
@@ -23,7 +23,13 @@ class Settings:
 
 
 def load_settings() -> Settings:
-    required = ["GEMINI_API_KEY", "SMTP_USER", "SMTP_APP_PASSWORD", "RECIPIENT_EMAIL"]
+    required = [
+        "OPENAI_API_KEY",
+        "OPENALEX_API_KEY",
+        "SMTP_USER",
+        "SMTP_APP_PASSWORD",
+        "RECIPIENT_EMAIL",
+    ]
     missing = [key for key in required if not os.getenv(key, "").strip()]
     if missing:
         raise RuntimeError("Missing required environment variables: " + ", ".join(missing))
@@ -37,14 +43,13 @@ def load_settings() -> Settings:
     if min(lookback, per_query, total) < 1:
         raise RuntimeError("LOOKBACK_DAYS and candidate limits must be positive integers.")
 
-    sender = os.environ["SMTP_USER"].strip()
     return Settings(
-        gemini_api_key=os.environ["GEMINI_API_KEY"].strip(),
-        gemini_model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip(),
-        smtp_user=sender,
+        openai_api_key=os.environ["OPENAI_API_KEY"].strip(),
+        openai_model=os.getenv("OPENAI_MODEL", "gpt-6.2-astra").strip(),
+        openalex_api_key=os.environ["OPENALEX_API_KEY"].strip(),
+        smtp_user=os.environ["SMTP_USER"].strip(),
         smtp_app_password=os.environ["SMTP_APP_PASSWORD"].replace(" ", "").strip(),
         recipient_email=os.environ["RECIPIENT_EMAIL"].strip(),
-        openalex_mailto=(os.getenv("OPENALEX_MAILTO") or sender).strip(),
         lookback_days=lookback,
         max_results_per_query=per_query,
         max_total_candidates=total,
