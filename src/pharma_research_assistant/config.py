@@ -44,7 +44,7 @@ def load_settings() -> Settings:
         smtp_user=sender,
         smtp_app_password=os.environ["SMTP_APP_PASSWORD"].replace(" ", "").strip(),
         recipient_email=os.environ["RECIPIENT_EMAIL"].strip(),
-        openalex_mailto=os.getenv("OPENALEX_MAILTO", sender).strip(),
+        openalex_mailto=(os.getenv("OPENALEX_MAILTO") or sender).strip(),
         lookback_days=lookback,
         max_results_per_query=per_query,
         max_total_candidates=total,
