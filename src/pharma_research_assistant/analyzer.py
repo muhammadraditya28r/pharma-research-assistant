@@ -1,6 +1,7 @@
 import json
 
-from openai import OpenAI
+from google import genai
+from google.genai import types
 
 from .history import normalize_title
 from .models import Paper, Topic
@@ -21,84 +22,47 @@ If a specific detail is not in the abstract, state that the abstract does not pr
 Return exactly seven distinct topics. Each paper_id must be copied exactly from the input.
 """
 
-
-def select_topics(papers: list[Paper], api_key: str, model: str) -> list[Topic]:
-    client = OpenAI(api_key=api_key)
-    candidates = [
-        {
-            "paper_id": paper.paper_id,
-            "title": paper.title,
-            "date": paper.publication_date,
-            "journal": paper.journal,
-            "url": paper.url,
-            "abstract": paper.abstract[:3500],
-        }
-        for paper in papers
-    ]
-    schema = {
-        "type": "object",
-        "properties": {
-            "topics": {
-                "type": "array",
-                "minItems": 7,
-                "maxItems": 7,
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "paper_id": {"type": "string"},
-                        "title": {"type": "string"},
-                        "instrument": {"type": "string"},
-                        "category": {
-                            "type": "string",
-                            "enum": [
-                                "Troubleshooting", "Method reliability", "Method development",
-                                "Validation", "Sample preparation", "Optimization",
-                            ],
-                        },
-                        "research_summary": {"type": "string"},
-                        "practical_relevance": {"type": "string"},
-                        "linkedin_angle": {"type": "string"},
+OUTPUT_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "topics": {
+            "type": "ARRAY",
+            "items": {
+                "type": "OBJECT",
+                "properties": {
+                    "paper_id": {"type": "STRING"},
+                    "title": {"type": "STRING"},
+                    "instrument": {"type": "STRING"},
+                    "category": {
+                        "type": "STRING",
+                        "enum": [
+                            "Troubleshooting", "Method reliability", "Method development",
+                            "Validation", "Sample preparation", "Optimization",
+                        ],
                     },
-                    "required": [
-                        "paper_id", "title", "instrument", "category",
-                        "research_summary", "practical_relevance", "linkedin_angle",
-                    ],
-                    "additionalProperties": False,
+                    "research_summary": {"type": "STRING"},
+                    "practical_relevance": {"type": "STRING"},
+                    "linkedin_angle": {"type": "STRING"},
                 },
-            }
-        },
-        "required": ["topics"],
-        "additionalProperties": False,
-    }
-    response = client.responses.create(
-        model=model,
-        input=[
-            {"role": "system", "content": SYSTEM_INSTRUCTION},
-            {
-                "role": "user",
-                "content": "Select and analyze seven topics from these candidate papers. "
-                "Use only their supplied metadata and abstracts.\n"
-                + json.dumps(candidates, ensure_ascii=False),
+                "required": [
+                    "paper_id", "title", "instrument", "category",
+                    "research_summary", "practical_relevance", "linkedin_angle",
+                ],
             },
-        ],
-        text={
-            "format": {
-                "type": "json_schema",
-                "name": "pharmaceutical_research_topics",
-                "strict": True,
-                "schema": schema,
-            }
-        },
-    )
-    output_text = response.output_text
-    if not output_text:
-        raise RuntimeError("OpenAI returned an empty response or no text output.")
+        }
+    },
+    "required": ["topics"],
+}
+
+
+def _parse_topics(output_text: str, papers: list[Paper]) -> list[Topic]:
     try:
         payload = json.loads(output_text)
-    except json.JSONDecodeError as exc:
-        raise RuntimeError("OpenAI response was not valid JSON.") from exc
+    except (json.JSONDecodeError, TypeError) as exc:
+        raise RuntimeError("Gemini response was not valid JSON.") from exc
+
     if not isinstance(payload, dict) or not isinstance(payload.get("topics"), list):
-        raise RuntimeError("OpenAI response is missing the topics array.")
+        raise RuntimeError("Gemini response is missing the topics array.")
 
     by_id = {paper.paper_id: paper for paper in papers}
     topics: list[Topic] = []
@@ -141,7 +105,63 @@ def select_topics(papers: list[Paper], api_key: str, model: str) -> list[Topic]:
 
     if len(topics) != 7:
         raise RuntimeError(
-            f"OpenAI returned {len(topics)} valid, unique topics; exactly 7 are required. "
+            f"Gemini returned {len(topics)} valid, unique topics; exactly 7 are required. "
             "No email or history update was performed."
         )
     return topics
+
+
+def select_topics(
+    papers: list[Paper],
+    api_key: str,
+    model: str,
+    fallback_models: tuple[str, ...] = (),
+) -> list[Topic]:
+    client = genai.Client(api_key=api_key)
+    candidates = [
+        {
+            "paper_id": paper.paper_id,
+            "title": paper.title,
+            "date": paper.publication_date,
+            "journal": paper.journal,
+            "url": paper.url,
+            "abstract": paper.abstract[:3500],
+        }
+        for paper in papers
+    ]
+    prompt = (
+        SYSTEM_INSTRUCTION
+        + "\n\nSelect and analyze seven topics from these candidate papers. "
+        "Use only their supplied metadata and abstracts.\n"
+        + json.dumps(candidates, ensure_ascii=False)
+    )
+
+    models = tuple(dict.fromkeys((model, *fallback_models)))
+    failures: list[str] = []
+
+    for candidate_model in models:
+        try:
+            response = client.models.generate_content(
+                model=candidate_model,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=OUTPUT_SCHEMA,
+                    temperature=0.2,
+                ),
+            )
+            output_text = response.text
+            if not output_text:
+                raise RuntimeError("Gemini returned an empty response.")
+            topics = _parse_topics(output_text, papers)
+            print(f"Research analysis completed using model: {candidate_model}")
+            return topics
+        except Exception as exc:
+            failures.append(f"{candidate_model}: {type(exc).__name__}: {exc}")
+            print(f"Model {candidate_model} failed; trying the next fallback if available.")
+
+    details = "\n".join(f"- {failure}" for failure in failures)
+    raise RuntimeError(
+        "All configured Gemini models failed. No email or history update was performed.\n"
+        + details
+    )
