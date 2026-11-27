@@ -13,7 +13,6 @@ def main() -> None:
     digest_id = date.today().isoformat()
     output = settings.briefs_dir / f"weekly_digest_{digest_id}.md"
 
-    # Prevent a second manual/scheduled run on the same date from sending duplicates.
     if output.exists():
         raise RuntimeError(
             f"A digest archive already exists for {digest_id}. "
@@ -24,7 +23,7 @@ def main() -> None:
     papers = discover_papers(
         lookback_days=settings.lookback_days,
         per_query=settings.max_results_per_query,
-        mailto=settings.openalex_mailto,
+        api_key=settings.openalex_api_key,
         max_total=settings.max_total_candidates,
     )
     fresh = unseen_papers(papers, history)
@@ -35,13 +34,11 @@ def main() -> None:
             "No email/history update performed."
         )
 
-    topics = select_topics(fresh, settings.gemini_api_key, settings.gemini_model)
+    topics = select_topics(fresh, settings.openai_api_key, settings.openai_model)
     digest = render_digest(topics, settings.lookback_days)
 
-    # Persist a pending issue before sending. If SMTP succeeds but the workflow
-    # fails afterwards, the archive prevents an accidental duplicate send.
     settings.briefs_dir.mkdir(parents=True, exist_ok=True)
-    output.write_text(digest + "\n", encoding="utf-8")
+    output.write_text(digest + "\\n", encoding="utf-8")
     try:
         send_digest(
             settings.smtp_user,
