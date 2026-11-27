@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 import re
 import time
@@ -52,7 +52,7 @@ def _retry_after_seconds(response: requests.Response, attempt: int) -> float:
         except ValueError:
             try:
                 retry_at = parsedate_to_datetime(value)
-                return max(1.0, (retry_at - retry_at.now(retry_at.tzinfo)).total_seconds())
+                return max(1.0, (retry_at - datetime.now(timezone.utc)).total_seconds())
             except (TypeError, ValueError, OverflowError):
                 pass
 
