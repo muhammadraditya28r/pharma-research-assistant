@@ -15,7 +15,7 @@ concurrency:
 jobs:
   weekly-digest:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -28,12 +28,12 @@ jobs:
         run: pytest
       - name: Generate and email digest
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: gemini-2.5-flash
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: gpt-6.2-astra
+          OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
           RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
-          OPENALEX_MAILTO: ${{ secrets.OPENALEX_MAILTO }}
           LOOKBACK_DAYS: "45"
           MAX_RESULTS_PER_QUERY: "50"
           MAX_TOTAL_CANDIDATES: "250"
