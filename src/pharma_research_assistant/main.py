@@ -34,11 +34,16 @@ def main() -> None:
             "No email/history update performed."
         )
 
-    topics = select_topics(fresh, settings.openai_api_key, settings.openai_model)
+    topics = select_topics(
+        fresh,
+        settings.gemini_api_key,
+        settings.gemini_model,
+        settings.gemini_fallback_models,
+    )
     digest = render_digest(topics, settings.lookback_days)
 
     settings.briefs_dir.mkdir(parents=True, exist_ok=True)
-    output.write_text(digest + "\\n", encoding="utf-8")
+    output.write_text(digest + "\n", encoding="utf-8")
     try:
         send_digest(
             settings.smtp_user,
